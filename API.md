@@ -1,0 +1,121 @@
+# API de Foco e Produtividade
+
+Backend em Python com FastAPI para registrar sessões de foco e gerar diagnóstico inteligente de produtividade com insights por categoria.
+
+## Stack
+- Python 3.x
+- FastAPI
+- SQLite
+- Pytest
+
+## Arquitetura
+- `app/main.py`: camada HTTP (rotas e contrato da API)
+- `app/service.py`: regras de negócio (diagnóstico, feedback e insights)
+- `app/repository.py`: persistência SQLite
+- `app/schemas.py`: validação e serialização (Pydantic)
+- `app/database.py`: conexão e bootstrap do banco
+
+Separação aplicada: rota delega para serviço, serviço delega para repositório.
+
+## Instalação
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+## Execução
+```bash
+uvicorn app.main:app --reload
+```
+
+API em `http://127.0.0.1:8000`.
+Documentação automática em `http://127.0.0.1:8000/docs`.
+
+## Endpoints
+
+### POST `/registro-foco`
+Cria um registro de sessão.
+
+Payload:
+```json
+{
+  "nivel_foco": 5,
+  "tempo_minutos": 50,
+  "comentario": "Implementação de endpoint",
+  "categoria": "coding"
+}
+```
+
+Regras:
+- `nivel_foco`: inteiro de 1 a 5
+- `tempo_minutos`: inteiro maior que 0
+- `comentario`: string não vazia
+- `categoria`: opcional, default `geral`
+
+Resposta `201`:
+```json
+{
+  "id": 1,
+  "nivel_foco": 5,
+  "tempo_minutos": 50,
+  "comentario": "Implementação de endpoint",
+  "categoria": "coding",
+  "criado_em": "2026-05-07T20:30:00"
+}
+```
+
+### GET `/diagnostico-produtividade`
+Retorna resumo global e insights por categoria.
+
+Resposta `200`:
+```json
+{
+  "media_nivel_foco": 3.67,
+  "tempo_total_focado": 135,
+  "mensagem_feedback": "Produtividade estável. Pequenos ajustes de ambiente podem elevar seu foco.",
+  "insights_por_categoria": [
+    {
+      "categoria": "coding",
+      "media_foco": 4.5,
+      "tempo_total": 105,
+      "recomendacao": "Excelente desempenho; mantenha esse padrão de execução."
+    },
+    {
+      "categoria": "reuniao",
+      "media_foco": 2.0,
+      "tempo_total": 30,
+      "recomendacao": "Blocos menores e menos interrupções podem ajudar nesta categoria."
+    }
+  ]
+}
+```
+
+Base vazia:
+- `media_nivel_foco = 0.0`
+- `tempo_total_focado = 0`
+- `insights_por_categoria = []`
+- mensagem orientando iniciar registros
+
+## Lógica de Feedback
+- média `< 3.0`: foco baixo, sugerir pausas e menos notificações
+- média `3.0 a 4.0`: produtividade estável com ajuste fino
+- média `> 4.0`: alto desempenho sustentado
+
+## Tratamento de Erros
+- `422`: payload inválido (tipos/ranges/campos vazios)
+- `500`: falhas inesperadas
+
+## Testes
+```bash
+pytest -q
+```
+
+Cobertura da suíte:
+- criação válida
+- validações de payload
+- diagnóstico com base vazia
+- cálculos de média e tempo total
+- mensagem por faixa de foco
+- agregação por categoria
+- persistência real em SQLite
