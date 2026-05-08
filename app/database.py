@@ -14,6 +14,7 @@ def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
             """
             CREATE TABLE IF NOT EXISTS registros_foco (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL DEFAULT 'anon-default',
                 nivel_foco INTEGER NOT NULL,
                 tempo_minutos INTEGER NOT NULL,
                 comentario TEXT NOT NULL,
@@ -22,6 +23,12 @@ def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
             )
             """
         )
+        columns = conn.execute("PRAGMA table_info(registros_foco)").fetchall()
+        has_user_id_column = any(column[1] == "user_id" for column in columns)
+        if not has_user_id_column:
+            conn.execute("ALTER TABLE registros_foco ADD COLUMN user_id TEXT NOT NULL DEFAULT 'anon-default'")
+
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_registros_foco_user_created ON registros_foco(user_id, criado_em)")
         conn.commit()
     finally:
         conn.close()
