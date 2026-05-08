@@ -106,6 +106,62 @@ Base vazia:
 - `422`: payload inválido (tipos/ranges/campos vazios)
 - `500`: falhas inesperadas
 
+### GET `/dashboard-produtividade`
+Retorna dashboard analítico por período com score, alerta de queda e ações recomendadas.
+
+Query params:
+- `from` (opcional): data ISO `YYYY-MM-DD`
+- `to` (opcional): data ISO `YYYY-MM-DD`
+
+Regras:
+- timezone configurável por variável de ambiente `DASHBOARD_TIMEZONE`
+- fallback de timezone: `America/Sao_Paulo` (quando variável ausente ou inválida)
+- se `from`/`to` ausentes: usa o dia atual local (`from=to=today`)
+- `from` deve ser menor ou igual a `to` (`422` se inválido)
+
+Exemplo de configuração:
+```bash
+export DASHBOARD_TIMEZONE=UTC
+uvicorn app.main:app --reload
+```
+
+Resposta `200`:
+```json
+{
+  "periodo": {
+    "from": "2026-05-01",
+    "to": "2026-05-07",
+    "timezone": "America/Sao_Paulo"
+  },
+  "resumo": {
+    "sessoes_total": 4,
+    "tempo_total_focado": 120,
+    "media_nivel_foco": 3.25
+  },
+  "score_consistencia": 74.2,
+  "alerta_queda_foco": {
+    "status": true,
+    "variacao_percentual": -40.0,
+    "mensagem": "Queda de foco detectada no período recente; revise interrupções e tamanho dos blocos."
+  },
+  "top_categoria": {
+    "categoria": "coding",
+    "media_foco": 5.0,
+    "tempo_total": 60
+  },
+  "categoria_em_risco": {
+    "categoria": "reuniao",
+    "media_foco": 1.5,
+    "tempo_total": 60
+  },
+  "acoes_recomendadas": [
+    "Defina horário fixo diário para sessões de foco e reduza variações de rotina.",
+    "Faça pausas curtas a cada bloco e silencie notificações durante tarefas críticas.",
+    "Crie um plano de melhoria para a categoria 'reuniao' com blocos menores e objetivos claros."
+  ]
+}
+```
+
 ## Testes
 ```bash
 pytest -q
@@ -119,3 +175,4 @@ Cobertura da suíte:
 - mensagem por faixa de foco
 - agregação por categoria
 - persistência real em SQLite
+- dashboard com período default, validação de query e métricas analíticas
