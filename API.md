@@ -34,6 +34,9 @@ Documentação automática em `http://127.0.0.1:8000/docs`.
 
 ## Endpoints
 
+Header obrigatório em todas as rotas:
+- `X-User-Id`: identificador único anônimo do usuário (ex.: UUID)
+
 ### POST `/registro-foco`
 Cria um registro de sessão.
 
@@ -57,6 +60,7 @@ Resposta `201`:
 ```json
 {
   "id": 1,
+  "user_id": "4d2a8f7c-13b9-4e9c-8f76-5a2818c8f3e2",
   "nivel_foco": 5,
   "tempo_minutos": 50,
   "comentario": "Implementação de endpoint",
@@ -154,6 +158,16 @@ Resposta `200`:
     "media_foco": 1.5,
     "tempo_total": 60
   },
+  "streak_dias": 4,
+  "faixas_de_ouro": [
+    "09:00-11:59",
+    "15:00-17:59"
+  ],
+  "comparativo_periodo_anterior": {
+    "media_nivel_foco_delta": 0.75,
+    "tempo_total_focado_delta": 45,
+    "sessoes_total_delta": 2
+  },
   "acoes_recomendadas": [
     "Defina horário fixo diário para sessões de foco e reduza variações de rotina.",
     "Faça pausas curtas a cada bloco e silencie notificações durante tarefas críticas.",
@@ -161,6 +175,11 @@ Resposta `200`:
   ]
 }
 ```
+
+Novos atrativos do dashboard:
+- `streak_dias`: maior sequência de dias consecutivos com registros no período.
+- `faixas_de_ouro`: até 2 faixas horárias com maior média de foco no período.
+- `comparativo_periodo_anterior`: delta de foco, tempo e sessões versus janela anterior de mesmo tamanho.
 
 ## Testes
 ```bash
