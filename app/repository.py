@@ -9,6 +9,7 @@ from app.database import DEFAULT_DB_PATH, get_connection
 @dataclass
 class FocusRecord:
     id: int
+    user_id: str
     nivel_foco: int
     tempo_minutos: int
     comentario: str
@@ -20,19 +21,19 @@ class FocusRecordRepository:
     def __init__(self, db_path: str | Path = DEFAULT_DB_PATH) -> None:
         self.db_path = db_path
 
-    def create(self, nivel_foco: int, tempo_minutos: int, comentario: str, categoria: str) -> FocusRecord:
+    def create(self, user_id: str, nivel_foco: int, tempo_minutos: int, comentario: str, categoria: str) -> FocusRecord:
         with get_connection(self.db_path) as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO registros_foco (nivel_foco, tempo_minutos, comentario, categoria)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO registros_foco (user_id, nivel_foco, tempo_minutos, comentario, categoria)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (nivel_foco, tempo_minutos, comentario, categoria),
+                (user_id, nivel_foco, tempo_minutos, comentario, categoria),
             )
             inserted_id = cursor.lastrowid
             row = conn.execute(
                 """
-                SELECT id, nivel_foco, tempo_minutos, comentario, categoria, criado_em
+                SELECT id, user_id, nivel_foco, tempo_minutos, comentario, categoria, criado_em
                 FROM registros_foco
                 WHERE id = ?
                 """,
@@ -40,20 +41,22 @@ class FocusRecordRepository:
             ).fetchone()
         return self._row_to_entity(row)
 
-    def list_all(self) -> list[FocusRecord]:
+    def list_all(self, user_id: str) -> list[FocusRecord]:
         with get_connection(self.db_path) as conn:
             rows = conn.execute(
                 """
-                SELECT id, nivel_foco, tempo_minutos, comentario, categoria, criado_em
+                SELECT id, user_id, nivel_foco, tempo_minutos, comentario, categoria, criado_em
                 FROM registros_foco
+                WHERE user_id = ?
                 ORDER BY id ASC
-                """
+                """,
+                (user_id,),
             ).fetchall()
         return [self._row_to_entity(row) for row in rows]
 
-    def list_by_local_date_range(self, start_date: date, end_date: date, timezone: str) -> list[FocusRecord]:
+    def list_by_local_date_range(self, user_id: str, start_date: date, end_date: date, timezone: str) -> list[FocusRecord]:
         zone = ZoneInfo(timezone)
-        records = self.list_all()
+        records = self.list_all(user_id)
         filtered: list[FocusRecord] = []
         for record in records:
             local_date = record.created_at.astimezone(zone).date()
@@ -65,6 +68,7 @@ class FocusRecordRepository:
     def _row_to_entity(row) -> FocusRecord:
         return FocusRecord(
             id=row["id"],
+            user_id=row["user_id"],
             nivel_foco=row["nivel_foco"],
             tempo_minutos=row["tempo_minutos"],
             comentario=row["comentario"],

@@ -1,7 +1,7 @@
 from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from pydantic import ValidationError
 
 from app.database import init_db
@@ -25,8 +25,9 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     service = DiagnosisService(repository)
 
     @app.post("/registro-foco", response_model=FocusRecordResponse, status_code=201)
-    def create_record(payload: FocusRecordCreate) -> FocusRecordResponse:
+    def create_record(payload: FocusRecordCreate, x_user_id: str = Header(alias="X-User-Id")) -> FocusRecordResponse:
         record = service.register_focus(
+            user_id=x_user_id,
             nivel_foco=payload.nivel_foco,
             tempo_minutos=payload.tempo_minutos,
             comentario=payload.comentario,
@@ -35,6 +36,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         return FocusRecordResponse.model_validate(
             {
                 "id": record.id,
+                "user_id": record.user_id,
                 "nivel_foco": record.nivel_foco,
                 "tempo_minutos": record.tempo_minutos,
                 "comentario": record.comentario,
@@ -44,13 +46,14 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
         )
 
     @app.get("/diagnostico-produtividade", response_model=DiagnosisResponse)
-    def get_diagnosis() -> DiagnosisResponse:
-        return DiagnosisResponse.model_validate(service.generate_diagnosis())
+    def get_diagnosis(x_user_id: str = Header(alias="X-User-Id")) -> DiagnosisResponse:
+        return DiagnosisResponse.model_validate(service.generate_diagnosis(x_user_id))
 
     @app.get("/dashboard-produtividade", response_model=ProductivityDashboardResponse)
     def get_productivity_dashboard(
         from_date: date | None = Query(default=None, alias="from"),
         to_date: date | None = Query(default=None, alias="to"),
+        x_user_id: str = Header(alias="X-User-Id"),
     ) -> ProductivityDashboardResponse:
         try:
             period_query = PeriodQuery.model_validate({"from": from_date, "to": to_date})
@@ -59,7 +62,7 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=messages) from exc
 
         try:
-            dashboard = service.generate_dashboard(period_query.from_date, period_query.to_date)
+            dashboard = service.generate_dashboard(x_user_id, period_query.from_date, period_query.to_date)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 

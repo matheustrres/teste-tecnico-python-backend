@@ -20,6 +20,7 @@ class FocusRecordCreate(BaseModel):
 
 class FocusRecordResponse(BaseModel):
     id: int
+    user_id: str
     nivel_foco: int
     tempo_minutos: int
     comentario: str
@@ -76,6 +77,12 @@ class CategorySummary(BaseModel):
     tempo_total: int
 
 
+class PreviousPeriodComparison(BaseModel):
+    media_nivel_foco_delta: float
+    tempo_total_focado_delta: int
+    sessoes_total_delta: int
+
+
 class ProductivityDashboardResponse(BaseModel):
     periodo: PeriodResponse
     resumo: DashboardSummary
@@ -83,15 +90,7 @@ class ProductivityDashboardResponse(BaseModel):
     alerta_queda_foco: FocusDropAlert
     top_categoria: CategorySummary | None
     categoria_em_risco: CategorySummary | None
+    streak_dias: int
+    faixas_de_ouro: list[str]
+    comparativo_periodo_anterior: PreviousPeriodComparison
     acoes_recomendadas: list[str]
-
-
-# Backward-compatible aliases for internal imports
-RegistroFocoCreate = FocusRecordCreate
-RegistroFocoResponse = FocusRecordResponse
-PeriodoQuery = PeriodQuery
-PeriodoResponse = PeriodResponse
-ResumoDashboard = DashboardSummary
-AlertaQuedaFoco = FocusDropAlert
-CategoriaResumo = CategorySummary
-DashboardProdutividadeResponse = ProductivityDashboardResponse

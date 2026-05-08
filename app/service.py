@@ -16,11 +16,13 @@ class DiagnosisService:
         self.repository = repository
         self.dashboard_timezone = self._resolve_dashboard_timezone(dashboard_timezone)
 
-    def register_focus(self, nivel_foco: int, tempo_minutos: int, comentario: str, categoria: str) -> FocusRecord:
-        return self.repository.create(nivel_foco, tempo_minutos, comentario, categoria)
+    def register_focus(
+        self, user_id: str, nivel_foco: int, tempo_minutos: int, comentario: str, categoria: str
+    ) -> FocusRecord:
+        return self.repository.create(user_id, nivel_foco, tempo_minutos, comentario, categoria)
 
-    def generate_diagnosis(self) -> dict:
-        records = self.repository.list_all()
+    def generate_diagnosis(self, user_id: str) -> dict:
+        records = self.repository.list_all(user_id)
         if not records:
             return {
                 "media_nivel_foco": 0.0,
@@ -39,13 +41,20 @@ class DiagnosisService:
             "insights_por_categoria": self._build_category_insights(records),
         }
 
-    def generate_dashboard(self, from_date: date | None, to_date: date | None) -> dict:
+    def generate_dashboard(self, user_id: str, from_date: date | None, to_date: date | None) -> dict:
         period_start, period_end = self._resolve_period(from_date, to_date)
-        records = self.repository.list_by_local_date_range(period_start, period_end, self.dashboard_timezone)
+        records = self.repository.list_by_local_date_range(user_id, period_start, period_end, self.dashboard_timezone)
         summary = self._build_summary(records)
         consistency_score = self._build_consistency_score(records, period_start, period_end)
         focus_alert = self._build_focus_drop_alert(records)
         top_category, risk_category = self._extract_category_extremes(records)
+        streak_days = self._build_streak_days(records)
+        golden_time_ranges = self._build_golden_time_ranges(records)
+        previous_period = self._build_previous_period(period_start, period_end)
+        previous_records = self.repository.list_by_local_date_range(
+            user_id, previous_period[0], previous_period[1], self.dashboard_timezone
+        )
+        previous_comparison = self._build_previous_period_comparison(summary, self._build_summary(previous_records))
         actions = self._build_recommended_actions(consistency_score, focus_alert["status"], risk_category)
 
         return {
@@ -59,6 +68,9 @@ class DiagnosisService:
             "alerta_queda_foco": focus_alert,
             "top_categoria": top_category,
             "categoria_em_risco": risk_category,
+            "streak_dias": streak_days,
+            "faixas_de_ouro": golden_time_ranges,
+            "comparativo_periodo_anterior": previous_comparison,
             "acoes_recomendadas": actions,
         }
 
@@ -243,3 +255,73 @@ class DiagnosisService:
             )
 
         return actions[:3]
+
+    def _build_streak_days(self, records: list[FocusRecord]) -> int:
+        if not records:
+            return 0
+
+        timezone = ZoneInfo(self.dashboard_timezone)
+        active_days = sorted({record.created_at.astimezone(timezone).date() for record in records})
+        if not active_days:
+            return 0
+
+        streak = 1
+        best_streak = 1
+        for idx in range(1, len(active_days)):
+            if (active_days[idx] - active_days[idx - 1]).days == 1:
+                streak += 1
+            else:
+                streak = 1
+            best_streak = max(best_streak, streak)
+        return best_streak
+
+    def _build_golden_time_ranges(self, records: list[FocusRecord]) -> list[str]:
+        if not records:
+            return []
+
+        timezone = ZoneInfo(self.dashboard_timezone)
+        buckets: dict[str, dict[str, float]] = defaultdict(lambda: {"focus_sum": 0.0, "count": 0.0})
+        for record in records:
+            local_hour = record.created_at.astimezone(timezone).hour
+            bucket_label = self._hour_bucket(local_hour)
+            buckets[bucket_label]["focus_sum"] += record.nivel_foco
+            buckets[bucket_label]["count"] += 1
+
+        ordered = []
+        for label, values in buckets.items():
+            avg_focus = values["focus_sum"] / values["count"]
+            ordered.append((label, avg_focus, values["count"]))
+
+        ordered.sort(key=lambda item: (item[1], item[2]), reverse=True)
+        return [item[0] for item in ordered[:2]]
+
+    @staticmethod
+    def _hour_bucket(hour: int) -> str:
+        if 5 <= hour < 9:
+            return "05:00-08:59"
+        if 9 <= hour < 12:
+            return "09:00-11:59"
+        if 12 <= hour < 15:
+            return "12:00-14:59"
+        if 15 <= hour < 18:
+            return "15:00-17:59"
+        if 18 <= hour < 22:
+            return "18:00-21:59"
+        return "22:00-04:59"
+
+    @staticmethod
+    def _build_previous_period(period_start: date, period_end: date) -> tuple[date, date]:
+        period_days = (period_end - period_start).days + 1
+        previous_end = period_start - date.resolution
+        previous_start = previous_end - (period_days - 1) * date.resolution
+        return previous_start, previous_end
+
+    @staticmethod
+    def _build_previous_period_comparison(current_summary: dict, previous_summary: dict) -> dict:
+        return {
+            "media_nivel_foco_delta": round(
+                current_summary["media_nivel_foco"] - previous_summary["media_nivel_foco"], 2
+            ),
+            "tempo_total_focado_delta": current_summary["tempo_total_focado"] - previous_summary["tempo_total_focado"],
+            "sessoes_total_delta": current_summary["sessoes_total"] - previous_summary["sessoes_total"],
+        }
