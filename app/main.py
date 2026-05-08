@@ -1,10 +1,18 @@
+from datetime import date
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import ValidationError
 
 from app.database import init_db
 from app.repository import FocusRecordRepository
-from app.schemas import DiagnosisResponse, RegistroFocoCreate, RegistroFocoResponse
+from app.schemas import (
+    DiagnosisResponse,
+    FocusRecordCreate,
+    FocusRecordResponse,
+    PeriodQuery,
+    ProductivityDashboardResponse,
+)
 from app.service import DiagnosisService
 
 
@@ -16,22 +24,48 @@ def create_app(db_path: str | Path | None = None) -> FastAPI:
     repository = FocusRecordRepository(db_target) if db_target is not None else FocusRecordRepository()
     service = DiagnosisService(repository)
 
-    @app.post("/registro-foco", response_model=RegistroFocoResponse, status_code=201)
-    def create_record(payload: RegistroFocoCreate) -> RegistroFocoResponse:
+    @app.post("/registro-foco", response_model=FocusRecordResponse, status_code=201)
+    def create_record(payload: FocusRecordCreate) -> FocusRecordResponse:
         record = service.register_focus(
             nivel_foco=payload.nivel_foco,
             tempo_minutos=payload.tempo_minutos,
             comentario=payload.comentario,
             categoria=payload.categoria,
         )
-        return RegistroFocoResponse.model_validate(record.__dict__)
+        return FocusRecordResponse.model_validate(
+            {
+                "id": record.id,
+                "nivel_foco": record.nivel_foco,
+                "tempo_minutos": record.tempo_minutos,
+                "comentario": record.comentario,
+                "categoria": record.categoria,
+                "criado_em": record.created_at,
+            }
+        )
 
     @app.get("/diagnostico-produtividade", response_model=DiagnosisResponse)
     def get_diagnosis() -> DiagnosisResponse:
         return DiagnosisResponse.model_validate(service.generate_diagnosis())
 
+    @app.get("/dashboard-produtividade", response_model=ProductivityDashboardResponse)
+    def get_productivity_dashboard(
+        from_date: date | None = Query(default=None, alias="from"),
+        to_date: date | None = Query(default=None, alias="to"),
+    ) -> ProductivityDashboardResponse:
+        try:
+            period_query = PeriodQuery.model_validate({"from": from_date, "to": to_date})
+        except ValidationError as exc:
+            messages = [error["msg"] for error in exc.errors()]
+            raise HTTPException(status_code=422, detail=messages) from exc
+
+        try:
+            dashboard = service.generate_dashboard(period_query.from_date, period_query.to_date)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        return ProductivityDashboardResponse.model_validate(dashboard)
+
     return app
 
 
-criar_app = create_app
 app = create_app()

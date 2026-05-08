@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from app.database import DEFAULT_DB_PATH, get_connection
 
@@ -12,7 +13,7 @@ class FocusRecord:
     tempo_minutos: int
     comentario: str
     categoria: str
-    criado_em: datetime
+    created_at: datetime
 
 
 class FocusRecordRepository:
@@ -50,6 +51,16 @@ class FocusRecordRepository:
             ).fetchall()
         return [self._row_to_entity(row) for row in rows]
 
+    def list_by_local_date_range(self, start_date: date, end_date: date, timezone: str) -> list[FocusRecord]:
+        zone = ZoneInfo(timezone)
+        records = self.list_all()
+        filtered: list[FocusRecord] = []
+        for record in records:
+            local_date = record.created_at.astimezone(zone).date()
+            if start_date <= local_date <= end_date:
+                filtered.append(record)
+        return filtered
+
     @staticmethod
     def _row_to_entity(row) -> FocusRecord:
         return FocusRecord(
@@ -58,5 +69,13 @@ class FocusRecordRepository:
             tempo_minutos=row["tempo_minutos"],
             comentario=row["comentario"],
             categoria=row["categoria"],
-            criado_em=datetime.fromisoformat(row["criado_em"]),
+            created_at=FocusRecordRepository._parse_datetime(row["criado_em"]),
         )
+
+    @staticmethod
+    def _parse_datetime(raw_value: str) -> datetime:
+        normalized = raw_value.replace(" ", "T")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)

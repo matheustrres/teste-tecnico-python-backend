@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class RegistroFocoCreate(BaseModel):
+class FocusRecordCreate(BaseModel):
     nivel_foco: int = Field(ge=1, le=5)
     tempo_minutos: int = Field(gt=0)
     comentario: str
@@ -18,7 +18,7 @@ class RegistroFocoCreate(BaseModel):
         return cleaned_value
 
 
-class RegistroFocoResponse(BaseModel):
+class FocusRecordResponse(BaseModel):
     id: int
     nivel_foco: int
     tempo_minutos: int
@@ -39,3 +39,59 @@ class DiagnosisResponse(BaseModel):
     tempo_total_focado: int
     mensagem_feedback: str
     insights_por_categoria: list[CategoryInsight]
+
+
+class PeriodQuery(BaseModel):
+    from_date: date | None = Field(default=None, alias="from")
+    to_date: date | None = Field(default=None, alias="to")
+
+    @model_validator(mode="after")
+    def validate_date_order(self) -> "PeriodQuery":
+        if self.from_date is not None and self.to_date is not None and self.from_date > self.to_date:
+            raise ValueError("'from' deve ser menor ou igual a 'to'")
+        return self
+
+
+class PeriodResponse(BaseModel):
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    timezone: str
+
+
+class DashboardSummary(BaseModel):
+    sessoes_total: int
+    tempo_total_focado: int
+    media_nivel_foco: float
+
+
+class FocusDropAlert(BaseModel):
+    status: bool
+    variacao_percentual: float
+    mensagem: str
+
+
+class CategorySummary(BaseModel):
+    categoria: str
+    media_foco: float
+    tempo_total: int
+
+
+class ProductivityDashboardResponse(BaseModel):
+    periodo: PeriodResponse
+    resumo: DashboardSummary
+    score_consistencia: float
+    alerta_queda_foco: FocusDropAlert
+    top_categoria: CategorySummary | None
+    categoria_em_risco: CategorySummary | None
+    acoes_recomendadas: list[str]
+
+
+# Backward-compatible aliases for internal imports
+RegistroFocoCreate = FocusRecordCreate
+RegistroFocoResponse = FocusRecordResponse
+PeriodoQuery = PeriodQuery
+PeriodoResponse = PeriodResponse
+ResumoDashboard = DashboardSummary
+AlertaQuedaFoco = FocusDropAlert
+CategoriaResumo = CategorySummary
+DashboardProdutividadeResponse = ProductivityDashboardResponse
