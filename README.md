@@ -2,6 +2,20 @@
 
 O objetivo deste teste é criar o backend de um **"Log de Performance"**. Em vez de apenas registrar tarefas, queremos entender o **estado de fluxo** do desenvolvedor ou estudante durante suas atividades.
 
+## ✅ Implementação deste fork
+- Documentação da solução implementada: `API.md`
+- Stack usada: Python + FastAPI + SQLite
+- Endpoints extras de valor ao usuário final:
+  - `GET /dashboard-produtividade` (score de consistência, alerta de queda de foco, recomendações por categoria)
+  - Timezone do dashboard configurável por `DASHBOARD_TIMEZONE` (ver `.env.example`)
+
+## 🔎 Checklist de Entrega
+- [ ] Criar e ativar ambiente virtual
+- [ ] Instalar dependências: `pip install -r requirements.txt`
+- [ ] Executar testes: `pytest -q`
+- [ ] Subir API: `uvicorn app.main:app --reload`
+- [ ] Validar rotas em `http://127.0.0.1:8000/docs`
+
 ## 📅 Regras de Entrega
 
 * Prazo: O projeto deve ser entregue até a próxima segunda-feira.
